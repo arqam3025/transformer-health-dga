@@ -1,311 +1,224 @@
-# Intelligent Transformer Health Monitoring using DGA & ML
+# Transformer Asset Health Intelligence — DGA, ML & Predictive Maintenance
 
-> Classifies 7 internal fault types in oil-filled power transformers from
-> Dissolved Gas Analysis — beating the classical Duval Triangle baseline
-> by +23 percentage points using calibrated XGBoost, physics-informed
-> IEC 60599 feature engineering, and a RAG-powered LLM diagnostic agent.
+[![Predictive Maintenance CI](https://github.com/arqam3025/transformer-health-dga/actions/workflows/predictive-maintenance-ci.yml/badge.svg?branch=feature%2Fpredictive-maintenance-extension)](https://github.com/arqam3025/transformer-health-dga/actions/workflows/predictive-maintenance-ci.yml)
 
-**Student:** Ankit Raj | B.Tech Electrical Engineering (Final Year) | KIIT University, Bhubaneswar
-**Standards:** IEC 60599:2022 · IEEE C57.104-2019 · CIGRE TB 761
-**Dataset:** IEEE DataPort — DOI: 10.21227/27vy-h479
+An engineering portfolio extension for **AI-assisted transformer condition monitoring and predictive maintenance**. The project combines an existing dissolved-gas-analysis (DGA) fault-diagnosis pipeline with longitudinal gas-trend analysis, transparent asset health/risk scoring, fleet maintenance prioritisation and a Streamlit engineering dashboard.
 
----
+> **Attribution:** This repository is a fork of [AR0714/transformer-health-dga](https://github.com/AR0714/transformer-health-dga), created by **Ankit Raj** and released under the MIT License. The upstream project provides the DGA fault-classification, classical diagnostic, explainability, RAG/LLM and original dashboard foundations. The predictive-maintenance extension described below was subsequently developed in this fork by **Raja Arqam Abdullah**. The original copyright and MIT license are retained.
 
-## Results
+## Why this extension exists
 
-| Method | Accuracy (70-row sealed test) | Notes |
-|--------|-------------------------------|-------|
-| Key Gas (classical) | ~60% | Single dominant gas only |
-| IEC 60599 Ratios (classical) | Partial | No-decision on ~30% of cases |
-| Duval Triangle (classical) | 57.1% | Industry standard since 1970s |
-| Random Forest (ML baseline) | 78.6% | With physics-informed features |
-| **XGBoost — calibrated (ours)** | **80.0%** | **ECE: 0.15 → 0.10 after calibration** |
+The upstream project diagnoses transformer condition from a DGA snapshot. In practical asset management, engineers also need to know whether gas concentrations are **changing over time**, how condition evidence affects an asset-level risk score, and which transformer should be investigated first across a fleet.
 
-**+23 percentage points above the Duval Triangle.**
-Both methods evaluated on the same 70-row held-out test set (10 samples
-per class, stratified split).
+This extension adds that longitudinal decision-support layer:
 
----
+```text
+Timestamped DGA history
+        |
+        v
+DGA trend + acceleration analysis
+        |
+        +--------------------+
+        |                    |
+        v                    v
+Latest gas state       Fault diagnosis
+        |              (upstream model/
+        |               diagnostic result)
+        +---------+----------+
+                  |
+                  v
+        Transformer health index
+        + transparent risk score
+                  |
+                  v
+        Maintenance recommendation
+                  |
+                  v
+          Fleet prioritisation
+                  |
+                  v
+     Streamlit engineering dashboard
+```
 
-## What This Project Does
+## Predictive-maintenance extension
 
-A power transformer costs USD 2–10 million and takes 18–24 months to
-replace. When faults develop internally — overheating, partial discharge,
-arcing — the insulating oil breaks down and releases specific dissolved
-gases. This project automates the interpretation of those gases across
-four parts:
+| Component | Purpose |
+|---|---|
+| `src/dga_trend_analysis.py` | Calculates gas rates in ppm/month, trend status, acceleration and dominant rising gas from timestamped DGA observations. |
+| `src/health_index.py` | Produces a transparent 0–100 health index and risk category from diagnosis severity, gas trends and diagnostic uncertainty. |
+| `src/predictive_maintenance.py` | Integrates diagnosis, trend evidence and health assessment into one maintenance assessment and recommendation. |
+| `src/fleet_prioritization.py` | Ranks multiple transformers so engineering teams can focus on the most urgent assets first. |
+| `dashboard.py` | Streamlit portfolio dashboard for fleet KPIs, priority queue, asset investigation and DGA history. |
+| `tests/` | Unit and integration tests for the extension. |
+| `.github/workflows/predictive-maintenance-ci.yml` | Runs the extension test suite on Python 3.10, 3.11 and 3.12. |
 
-**Part 1:** Classical methods + calibrated XGBoost classifier
-**Part 2:** Probability calibration, SHAP explainability, fleet risk ranking
-**Part 3:** RAG-powered LLM diagnostic agent (IEC 60599 knowledge base + Ollama)
-**Part 4:** Live web dashboard with conversational chatbot and sensor simulator
+### Dashboard outputs
 
-**The pipeline:**
+The demonstration dashboard provides:
 
-Raw DGA Gases (5 key gases: H₂ CH₄ C₂H₆ C₂H₄ C₂H₂)
-↓
-Classical Methods → Key Gas · IEC 60599 Ratios · Duval Triangle
-↓
-Physics-Informed Feature Engineering (~13 features)
-IEC gas ratios + Duval coordinates + gas percentage fractions
-↓
-Calibrated XGBoost Classifier
-↓
-SHAP Explainability → Top fault drivers identified per prediction
-↓
-Fleet Risk Ranking → Worst units surfaced first
-↓
-RAG Engine (FAISS + sentence-transformers + IEC 60599 knowledge base)
-↓
-LLM Agent (Ollama / llama3.2) → Plain-language diagnostic answers
-↓
-Live Web Dashboard + Conversational Chatbot
+- fleet counts by CRITICAL / HIGH / MODERATE / LOW risk;
+- a ranked maintenance-priority queue;
+- per-transformer health index, diagnosis, risk and priority score;
+- engineering maintenance recommendation;
+- timestamped DGA gas-history visualisation;
+- trend status, dominant rising gas and rate of increase;
+- diagnostic confidence and engineering-use cautions.
 
+The included four-transformer fleet is **synthetic demonstration data**. It is intended to exercise the software workflow and is not field-validation evidence.
 
----
+## Engineering methodology
 
-## The 7 Fault Classes (IEC 60599)
+### 1. Longitudinal DGA trend analysis
 
-| Class | Fault | Key Gas Signature | Severity |
-|-------|-------|-------------------|----------|
-| Normal | No fault | All gases typical | ✅ Safe |
-| PD | Partial Discharge | H₂ dominant | ⚠️ Monitor |
-| T1 | Thermal < 300°C | CH₄ + C₂H₆ dominant | ⚠️ Caution |
-| T2 | Thermal 300–700°C | C₂H₄ dominant | 🔶 Warning |
-| T3 | Thermal > 700°C | C₂H₄ critically high | 🔴 Critical |
-| D1 | Low-energy discharge | H₂ + low C₂H₂ | 🔶 Warning |
-| D2 | High-energy arcing | C₂H₂ > 50 ppm | 🚨 Emergency |
+For each gas, the extension calculates change over elapsed time and expresses the result in **ppm/month**. With at least three observations it can also calculate an acceleration signal. A dominant rising gas is surfaced as concise engineering evidence.
 
-The ML model uses 5 key DGA gases (H₂ CH₄ C₂H₆ C₂H₄ C₂H₂).
-The dashboard additionally monitors CO and CO₂ for paper degradation context.
+Trend labels such as `RAPID DETERIORATION` and `DETERIORATING` use **project-defined heuristic thresholds**. They are not IEC/IEEE alarm limits and require validation before operational use.
 
----
+### 2. Transparent health and risk scoring
 
-## Key Technical Findings
+The extension converts multiple signals into an interpretable risk score:
 
-**1. Physics-informed features beat raw gas values alone.**
-Feature engineering adds ~13 inputs from 5 raw gases: three IEC 60599
-ratio features (C₂H₂/C₂H₄, CH₄/H₂, C₂H₄/C₂H₆), Duval Triangle X/Y
-coordinates (barycentric projection), and gas percentage fractions. These
-encode decades of electrochemical physics that a data-only model would
-need thousands of samples to learn implicitly.
+```text
+Risk score =
+    65% fault-severity contribution
+  + 25% DGA-trend contribution
+  + 10% diagnostic-uncertainty contribution
 
-**2. Calibration matters more than accuracy for risk ranking.**
-Raw XGBoost outputs overconfident probabilities (Expected Calibration
-Error = 0.15). After isotonic regression calibration via
-CalibratedClassifierCV, ECE dropped to 0.10 — a 33% reduction. A fleet
-ranking built on uncalibrated probabilities produces an unreliable
-priority list. After calibration, when the model says 80% confident it
-is correct approximately 80% of the time.
+Health index = 100 - risk score
+```
 
-**3. SHAP confirmed the model learned real transformer chemistry.**
-For D2 (high-energy arcing) predictions, C₂H₂ (acetylene) has SHAP
-value +0.74 — the highest of all features. This validates the model
-against IEC 60599 physics: acetylene is produced exclusively by
-electrical arcing above 1000°C and is the primary internationally
-recognised marker for D2. The model learned what engineers already know.
+Risk categories are then mapped to LOW, MODERATE, HIGH or CRITICAL bands. Fault-severity values, weights and category boundaries are deliberately visible in code so they can be reviewed, sensitivity-tested and replaced with validated organisational rules.
 
-**4. The Duval Triangle's blind spot is the discharge-thermal boundary.**
-Confusion matrix analysis shows the model's remaining errors cluster at
-the PD↔D1 and D1↔D2 boundary — physically sensible, because these
-faults share overlapping gas chemistry at boundary concentrations.
+### 3. Predictive-maintenance assessment
 
----
+`assess_history(...)` combines:
 
-## System Architecture
+- the latest transformer gas state;
+- longitudinal DGA behaviour;
+- fault diagnosis and confidence;
+- health/risk scoring;
+- maintenance priority and an engineering recommendation.
 
-### Part 1–2: ML Pipeline (`notebooks/01_load_and_look.ipynb`)
-- Dataset: ~584 training rows (after deduplication), 70-row sealed test
-- Stratified 80/20 split (preserves rare T2 class: 21 training samples)
-- Feature engineering: ~13 physics-informed features from 5 raw gases
-- Model: XGBoost (300 estimators, max_depth=4, learning_rate=0.1)
-- Calibration: isotonic regression via CalibratedClassifierCV
-- Evaluation: 5-fold stratified cross-validation, macro-F1 primary metric
-- Explainability: SHAP TreeExplainer (summary plot + per-prediction waterfall)
+The diagnostic interface is injectable through `assess_with_model(...)`, allowing the existing calibrated model, a future API or a test double to be connected without tightly coupling the maintenance logic to one model implementation.
 
-### Classical Methods (`src/classical/`)
-- `classical_methods.py` — Key Gas, IEC 60599 ratios, Duval Triangle
-- `key_gas.py` — dominant-gas fault indicator
-- `iec_ratios.py` — three-ratio IEC 60599 classifier with no-decision handling
-- `duval.py` — Duval Triangle using matplotlib.path polygon zone test
+### 4. Fleet prioritisation
 
-### Part 3: RAG Diagnostic Agent (`src/`)
-- `build_kb.py` — builds FAISS vector index from IEC 60599 / IEEE text summaries
-- `rag_engine.py` — semantic retrieval engine (sentence-transformers + FAISS)
-- `agent.py` — Ollama HTTP integration (llama3.2, localhost:11434)
-- `diagnose_agent.py` — CLI agent: gas input → XGBoost → SHAP → IEC retrieval → LLM response
+Fleet ranking starts with the transparent risk score and applies small escalation factors for rapid deterioration and selected higher-severity diagnosis classes. The score is capped at 100 and is used as a **decision-support ranking**, not as a probability of failure.
 
-### Part 4: Web Dashboard (`app/`)
-- `server.py` — Flask server with three endpoints:
-  - `GET /api/sensors` — live DGA simulation (7 gases, ±4% jitter, 3s polling)
-  - `GET /api/diagnosis` — ML classification on current sensor readings (5s polling)
-  - `POST /api/chat` — conversational chatbot with live sensor context injection
-- `static/index.html` — HTML/CSS/JS dashboard with:
-  - Animated transformer SVG (core color: green/yellow/red by fault severity)
-  - Live gas-level bars with IEC 60599 threshold markers
-  - Health status badge and confidence meter
-  - Embedded conversational chatbot panel
+## Upstream DGA/ML foundation
 
-### Part 4 Backend (`src/`)
-- `sensor_simulator.py` — realistic DGA + electrical reading simulator
-- `transformer_memory.py` — 8-turn conversation memory with sensor snapshots
-- `intent_detector.py` — classifies user question type (health/voltage/gas/advice)
-- `transformer_chatbot.py` — orchestrator: intent → sensor → model → RAG → LLM
-- `chat_cli.py` — CLI chatbot for testing before dashboard
+The original project by Ankit Raj includes:
 
----
+- Key Gas, IEC-ratio and Duval Triangle classical diagnostic methods;
+- physics-informed DGA feature engineering;
+- calibrated XGBoost fault classification;
+- Random Forest comparison;
+- SHAP explainability;
+- seven diagnostic classes: `Normal`, `PD`, `D1`, `D2`, `T1`, `T2`, `T3`;
+- FAISS + sentence-transformer retrieval;
+- an LLM diagnostic agent;
+- sensor simulation and a Flask-based dashboard.
 
-## Honest Limitations
+The upstream README reports **80.0% accuracy on its 70-row sealed test set** for the calibrated XGBoost model, compared with **57.1%** for its Duval Triangle implementation. Those are **upstream benchmark results** and should not be interpreted as validation of the predictive-maintenance extension.
 
-This section exists because engineering credibility requires it.
+## Run the predictive-maintenance dashboard
 
-- **Test set is curated.** The 70-row sealed test uses 10 samples per class,
-  not a natural distribution. Real-world performance on imbalanced fleet
-  data will differ, particularly for rare fault types.
+Clone this fork and switch to the development branch:
 
-- **Data leakage in IEC TC10 benchmark.** 41 of 49 IEC TC10 reference
-  rows (84%) overlap with training data. Any accuracy reported on all
-  49 IEC TC10 rows is inflated. The honest primary metric is the
-  independent 70-row sealed test. The 8 genuinely unseen IEC TC10 rows
-  are too few for strong statistical claims.
-
-- **T2 class has 21 training samples.** Per-class recall for T2 is
-  less stable than for other classes. Treat T2 predictions with
-  additional caution.
-
-- **DGA is a snapshot, not a time-series.** IEC standards weight gas
-  trends heavily; this project uses single-snapshot readings only.
-  Time-series trend features would improve performance but require
-  longitudinal data not available in the current dataset.
-
-- **Not validated on physical transformers.** Results are on a benchmark
-  dataset. Field validation on an instrumented transformer would be
-  required before operational deployment.
-
-- **LLM runs locally via Ollama.** The cloud-deployed version switches
-  the LLM endpoint to Groq / Together AI. No change to chatbot logic —
-  only the HTTP endpoint changes.
-
----
-
-## How to Run
-
-### Requirements
 ```bash
-pip install -r requirements.txt
-# Key packages: xgboost scikit-learn shap pandas numpy flask
-#               sentence-transformers faiss-cpu joblib requests
+git clone https://github.com/arqam3025/transformer-health-dga.git
+cd transformer-health-dga
+git switch feature/predictive-maintenance-extension
 ```
 
-### Local LLM (One-Time Setup)
+Install the lightweight dashboard dependencies:
+
 ```bash
-# Install Ollama from ollama.com
-ollama pull llama3.2   # ~2 GB download, runs on 8 GB RAM
-ollama serve           # Start in a separate terminal
+python -m pip install -r requirements-dashboard.txt
 ```
 
-### Run the Web Dashboard
+Launch:
+
 ```bash
-python app/server.py
-# Open http://127.0.0.1:5000
+python -m streamlit run dashboard.py
 ```
 
-### Run the CLI Diagnostic Agent (Part 3)
+The terminal will display the local address for the running Streamlit application.
+
+## Testing and CI
+
+Run the extension tests locally with:
+
 ```bash
-python src/diagnose_agent.py
+python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-### Run the Conversational Chatbot (Part 4 CLI)
-```bash
-python src/chat_cli.py
-```
+GitHub Actions runs the same suite across **Python 3.10, 3.11 and 3.12**. The workflow is defined in `.github/workflows/predictive-maintenance-ci.yml`.
 
-### Run the ML Notebook
-```bash
-jupyter lab
-# Open notebooks/01_load_and_look.ipynb
-```
+## Repository map
 
-### Dataset
-Download from IEEE DataPort: `https://ieee-dataport.org/documents/dissolved-gas-analysis-dga`
-Place files in `data/` directory (gitignored).
-
----
-
-## Standards Referenced
-
-- **IEC 60599:2022** — Mineral oil-filled electrical equipment:
-  interpretation of dissolved and free gases analysis
-- **IEEE C57.104-2019** — Guide for the Interpretation of Gases
-  Generated in Mineral Oil-Immersed Transformers
-- **CIGRE Technical Brochure 761** — Advances in DGA interpretation
-
----
-
-## Repository Structure
-
-```
+```text
 transformer-health-dga/
-├── data/
-│ ├── raw/ # IEEE DataPort DGA dataset
-│ └── iec_knowledge_base/ # IEC 60599 text files for RAG
-├── models/
-│ ├── xgb_dga_calibrated.joblib # Trained calibrated model
-│ └── faiss_index/ # FAISS vector index (Part 3)
-│ ├── index.faiss
-│ └── metadata.json
-├── notebooks/
-│ └── 01_load_and_look.ipynb # Full ML pipeline (Parts 1–2)
+├── dashboard.py                         # Streamlit asset-health dashboard [extension]
+├── requirements-dashboard.txt           # Dashboard dependencies [extension]
 ├── src/
-│ ├── classical/
-│ │ ├── classical_methods.py # Key Gas, IEC ratios, Duval
-│ │ ├── key_gas.py
-│ │ ├── iec_ratios.py
-│ │ └── duval.py
-│ ├── calibration.py # CalibratedDGAModel class
-│ ├── predict.py # Prediction wrapper
-│ ├── build_kb.py # Builds FAISS knowledge base
-│ ├── rag_engine.py # RAG retrieval engine
-│ ├── agent.py # Ollama LLM integration
-│ ├── diagnose_agent.py # CLI diagnostic agent
-│ ├── sensor_simulator.py # Live sensor simulation
-│ ├── transformer_memory.py # Conversation memory
-│ ├── intent_detector.py # Question intent classifier
-│ ├── transformer_chatbot.py # Conversational orchestrator
-│ └── chat_cli.py # CLI chatbot interface
-├── app/
-│ ├── server.py # Flask web server
-│ └── static/
-│ ├── index.html # Dashboard page
-│ ├── transformer.css # Styles + animations
-│ └── dashboard.js # Live polling + chatbot JS
-├── reports/
-│ ├── shap_summary_bar.png
-│ ├── calibration_curve.png
-│ └── confusion_matrix.png
-├── DECISIONS_3.md # All key engineering decisions
-├── requirements.txt
-└── README.md
+│   ├── dga_trend_analysis.py            # Longitudinal DGA trends [extension]
+│   ├── health_index.py                  # Health/risk engine [extension]
+│   ├── predictive_maintenance.py        # Integrated assessment [extension]
+│   ├── fleet_prioritization.py          # Fleet ranking [extension]
+│   ├── predict.py                       # Existing DGA prediction layer [upstream]
+│   ├── classical/                       # Classical DGA diagnostics [upstream]
+│   └── ...                              # RAG, agent and simulator modules [upstream]
+├── tests/
+│   ├── test_dga_trend_analysis.py       # [extension]
+│   ├── test_health_index.py             # [extension]
+│   ├── test_predictive_maintenance.py   # [extension]
+│   └── test_fleet_prioritization.py     # [extension]
+├── .github/workflows/
+│   └── predictive-maintenance-ci.yml    # Multi-version CI [extension]
+├── app/                                 # Original Flask dashboard [upstream]
+├── notebooks/                           # Original ML pipeline [upstream]
+├── models/                              # Original model artefacts [upstream]
+└── LICENSE                              # Original MIT license retained
+```
 
+## Limitations and responsible engineering use
+
+This repository is a **research/portfolio prototype**, not a certified transformer protection or maintenance system.
+
+The predictive-maintenance health score, trend thresholds, risk weights and fleet escalation factors are transparent engineering heuristics developed for this extension; they are **not IEC/IEEE standard limits**. The included longitudinal fleet data are synthetic. No remaining-useful-life accuracy or failure-time prediction is claimed. No field validation has been performed for the extension.
+
+Operational deployment would require, at minimum, longitudinal field DGA data, data-quality controls, sensitivity/uncertainty analysis, validation against engineering outcomes, organisation-specific maintenance rules and review by appropriately qualified engineers. Maintenance decisions should use applicable standards, test evidence and engineering judgement rather than this software alone.
+
+The upstream project separately documents limitations of its classifier, including its curated test set, rare T2 samples and lack of longitudinal DGA data.
+
+## Standards context
+
+The upstream diagnostic work references:
+
+- IEC 60599:2022 — interpretation of dissolved and free gases in mineral-oil-filled electrical equipment;
+- IEEE C57.104-2019 — interpretation of gases generated in mineral-oil-immersed transformers;
+- CIGRE Technical Brochure 761 — DGA interpretation.
+
+References to these documents describe the diagnostic context. They do **not** imply that the extension's custom health-index weights or deterioration thresholds are standardised by those publications.
+
+## Extension authorship
+
+**Predictive-maintenance extension:** Raja Arqam Abdullah  
+GitHub: [arqam3025](https://github.com/arqam3025)
+
+Extension scope: longitudinal DGA trend analysis, transformer health/risk assessment, predictive-maintenance integration, fleet prioritisation, Streamlit asset-health dashboard, automated tests and CI integration.
+
+## Upstream attribution
+
+**Original project:** *Intelligent Transformer Health Monitoring using DGA & ML*  
+**Original author:** Ankit Raj (GitHub: [AR0714](https://github.com/AR0714))  
+**Upstream repository:** [AR0714/transformer-health-dga](https://github.com/AR0714/transformer-health-dga)
+
+This fork retains the upstream MIT License and original copyright notice. See `LICENSE` for the license text.
 
 ---
 
-## About
+### Suggested next research steps
 
-Built as a final-year B.Tech Electrical Engineering project at KIIT University.
-The project sits at the intersection of power systems domain knowledge
-(IEC/IEEE standards, DGA physics) and modern ML practice (calibration,
-explainability, fleet prioritisation, RAG-based LLM agents).
-
-**Author:** Ankit Raj
-**Contact:** ankitforward47@gmail.com
-**LinkedIn:** linkedin.com/in/ankitraj0714
-**GitHub:** github.com/AR0714
-
-Run all cells top to bottom.
-
-## Fault Classes
-Normal | PD | D1 | D2 | T1 | T2 | T3
-
-## Author
-Ankit Raj — KIIT University, 2026
+For stronger research validity, future work should prioritise real longitudinal DGA histories, sensitivity analysis of the health-index parameters, time-aware validation, uncertainty calibration at the maintenance-decision level, and comparison of ranking decisions against observed inspection or failure outcomes.
