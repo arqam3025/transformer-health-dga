@@ -26,6 +26,8 @@ class FleetAsset:
     health_index: float
     diagnosis: str
     trend_status: str
+    dominant_rising_gas: str | None
+    dominant_rate_ppm_per_month: float
     maintenance_priority: str
     recommendation: str
 
@@ -73,6 +75,8 @@ def rank_assessments(
             health_index=item.health_index,
             diagnosis=item.diagnosis,
             trend_status=item.trend_status,
+            dominant_rising_gas=item.dominant_rising_gas,
+            dominant_rate_ppm_per_month=item.dominant_rate_ppm_per_month,
             maintenance_priority=item.maintenance_priority,
             recommendation=item.recommendation,
         )
