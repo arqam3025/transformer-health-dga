@@ -62,6 +62,12 @@ class TestFleetPrioritization(unittest.TestCase):
         scores = [item.priority_score for item in ranked]
         self.assertEqual(scores, sorted(scores, reverse=True))
 
+    def test_condition_evidence_is_preserved_for_dashboard(self):
+        ranked = assess_fleet(self.assets)
+        arc = next(item for item in ranked if item.transformer_id == "TR-ARC")
+        self.assertEqual(arc.dominant_rising_gas, "C2H2")
+        self.assertGreater(arc.dominant_rate_ppm_per_month, 0)
+
     def test_summary_counts_fleet_condition(self):
         ranked = assess_fleet(self.assets)
         summary = fleet_summary(ranked)
